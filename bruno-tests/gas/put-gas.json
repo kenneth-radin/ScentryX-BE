@@ -1,0 +1,7 @@
+{
+  "method": "PUT",
+  "url": "http://localhost:3000/api/gas/REPLACE_WITH_GAS_ID",
+  "body": {
+    "gasLevel": 50
+  }
+}

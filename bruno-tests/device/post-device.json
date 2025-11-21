@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "url": "http://localhost:3000/api/devices",
+  "body": {
+    "name": "Kitchen Sensor",
+    "location": "Kitchen",
+    "deviceId": "DEVICE001"
+  }
+}

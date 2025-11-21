@@ -1,0 +1,10 @@
+{
+  "method": "POST",
+  "url": "http://localhost:3000/api/gas",
+  "body": {
+  "deviceId": "DEVICE001",
+  "gasValue": 48,
+  "status": "high"
+}
+
+}

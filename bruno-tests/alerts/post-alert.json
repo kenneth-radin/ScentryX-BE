@@ -1,0 +1,11 @@
+{
+  "method": "POST",
+  "url": "http://localhost:3000/api/alerts",
+  "body": 
+  {
+  "deviceId": "DEVICE001",
+  "type": "gas",
+  "message": "Gas level high!"
+   }
+
+}

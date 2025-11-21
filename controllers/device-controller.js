@@ -4,44 +4,53 @@ const Device = require('../models/device');
 exports.createDevice = async (req, res) => {
   try {
     const { name, location, deviceId } = req.body;
-    if (!name || !deviceId) 
+
+    if (!name || !deviceId)
       return res.status(400).json({ success: false, message: 'Name and deviceId are required' });
 
-    // Check if deviceId already exists
+    // Check if deviceId exists
     const existingDevice = await Device.findOne({ deviceId });
-    if (existingDevice) 
+    if (existingDevice)
       return res.status(400).json({ success: false, message: 'Device already exists' });
 
     const device = new Device({ name, location, deviceId });
     await device.save();
 
-    res.status(201).json({ success: true, message: 'Device created successfully', device });
+    res.status(201).json({
+      success: true,
+      message: 'Device created successfully',
+      device
+    });
+
   } catch (error) {
-    console.error('Create device failed:', error.message, error);
+    console.error('Create device failed:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// READ all
+// READ ALL (exclude deleted)
 exports.getAllDevices = async (req, res) => {
   try {
-    const devices = await Device.find();
+    const devices = await Device.find({ isDeleted: false });
     res.json({ success: true, devices });
   } catch (error) {
-    console.error('Get all devices failed:', error.message, error);
+    console.error('Get all devices failed:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// READ one
+// READ ONE (exclude deleted)
 exports.getDeviceById = async (req, res) => {
   try {
-    const device = await Device.findById(req.params.id);
-    if (!device) 
+    const device = await Device.findOne({ _id: req.params.id, isDeleted: false });
+
+    if (!device)
       return res.status(404).json({ success: false, message: 'Device not found' });
+
     res.json({ success: true, device });
+
   } catch (error) {
-    console.error('Get device by ID failed:', error.message, error);
+    console.error('Get device failed:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -49,12 +58,23 @@ exports.getDeviceById = async (req, res) => {
 // UPDATE
 exports.updateDevice = async (req, res) => {
   try {
-    const device = await Device.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!device) 
+    const device = await Device.findOneAndUpdate(
+      { _id: req.params.id, isDeleted: false },
+      req.body,
+      { new: true }
+    );
+
+    if (!device)
       return res.status(404).json({ success: false, message: 'Device not found' });
-    res.json({ success: true, message: 'Device updated successfully', device });
+
+    res.json({
+      success: true,
+      message: 'Device updated successfully',
+      device
+    });
+
   } catch (error) {
-    console.error('Update device failed:', error.message, error);
+    console.error('Update device failed:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -62,12 +82,22 @@ exports.updateDevice = async (req, res) => {
 // DELETE
 exports.deleteDevice = async (req, res) => {
   try {
-    const device = await Device.findByIdAndDelete(req.params.id);
-    if (!device) 
+    const device = await Device.findOneAndUpdate(
+      { _id: req.params.id, isDeleted: false },
+      { isDeleted: true },
+      { new: true }
+    );
+
+    if (!device)
       return res.status(404).json({ success: false, message: 'Device not found' });
-    res.json({ success: true, message: 'Device deleted successfully' });
+
+    res.json({
+      success: true,
+      message: 'Device deleted successfully'
+    });
+
   } catch (error) {
-    console.error('Delete device failed:', error.message, error);
+    console.error('Delete device failed:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

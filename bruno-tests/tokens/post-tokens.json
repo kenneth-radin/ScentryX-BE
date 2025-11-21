@@ -1,0 +1,8 @@
+{
+  "method": "POST",
+  "url": "http://localhost:3000/api/tokens",
+  "body": {
+    "userId": "USER001",
+    "fcmToken": "abcdef123456"
+  }
+}

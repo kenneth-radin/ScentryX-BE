@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "url": "http://localhost:3000/api/auth/register",
+  "body": {
+    "username": "testuser",
+    "email": "test@example.com",
+    "password": "password123"
+  }
+}

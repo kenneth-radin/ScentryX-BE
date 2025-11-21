@@ -1,0 +1,8 @@
+{
+  "method": "PUT",
+  "url": "http://localhost:3000/api/devices/REPLACE_WITH_DEVICE_ID",
+  "body": {
+    "name": "Updated Kitchen Sensor",
+    "location": "Living Room"
+  }
+}
