@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const gasController = require('../controllers/gas.controller');
+const gasController = require('../controllers/gas.controller'); // FIXED: .controller not -controller
 
 // POST a new gas reading (automatic alert if above threshold)
 router.post('/', gasController.createGasReading);

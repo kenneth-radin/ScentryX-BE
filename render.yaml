@@ -1,9 +1,9 @@
 services:
   - type: web
-    name: scentryx-gas-detector
+    name: scentryx-backend
     env: node
     plan: free
-    region: oregon  # or singapore for Asia
+    region: singapore
     buildCommand: npm install
     startCommand: npm start
     envVars:
@@ -11,5 +11,9 @@ services:
         value: production
       - key: MONGODB_URI
         value: mongodb+srv://kenneth:radin159@scentryx.fh5hb0k.mongodb.net/scentryx?retryWrites=true&w=majority
+      - key: PORT
+        value: 3000
+      - key: JWT_SECRET
+        generateValue: true
     healthCheckPath: /health
     autoDeploy: true

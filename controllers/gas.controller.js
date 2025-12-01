@@ -9,7 +9,7 @@ const lastAlert = {};
 // CREATE Gas Reading
 exports.createGasReading = async (req, res) => {
   try {
-    console.log('Gas reading received:', req.body);
+    console.log('📊 Gas reading received:', req.body);
     
     const { deviceId, gasValue, status, timestamp } = req.body;
 
@@ -21,7 +21,7 @@ exports.createGasReading = async (req, res) => {
       });
     }
 
-    // Save gas reading
+    // Save gas reading to MongoDB
     const reading = new GasReading({
       deviceId,
       gasValue,
@@ -30,6 +30,8 @@ exports.createGasReading = async (req, res) => {
     });
     
     await reading.save();
+    
+    console.log(`✅ Gas reading saved to MongoDB. ID: ${reading._id}`);
 
     // Check threshold and create alert if needed
     if (gasValue > GAS_THRESHOLD) {
@@ -38,7 +40,7 @@ exports.createGasReading = async (req, res) => {
 
       // Throttle alerts (2 minutes)
       if (now - last > 2 * 60 * 1000) {
-        console.log(`⚠️ High gas alert for ${deviceId}: ${gasValue}`);
+        console.log(`🚨 HIGH GAS ALERT for ${deviceId}: ${gasValue}`);
         
         // Create alert in MongoDB
         const alert = new Alert({
@@ -48,6 +50,8 @@ exports.createGasReading = async (req, res) => {
           timestamp: new Date()
         });
         await alert.save();
+        
+        console.log(`✅ Alert saved to MongoDB. ID: ${alert._id}`);
 
         // Send FCM notifications
         try {
@@ -83,8 +87,9 @@ exports.createGasReading = async (req, res) => {
 
     res.status(201).json({ 
       success: true, 
-      message: 'Gas reading saved',
-      reading 
+      message: 'Gas reading saved successfully',
+      reading: reading,
+      mongoId: reading._id
     });
 
   } catch (error) {

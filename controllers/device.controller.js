@@ -3,7 +3,7 @@ const Device = require('../models/device');
 // CREATE - Register new device (called by ESP8266)
 exports.createDevice = async (req, res) => {
   try {
-    console.log('Device registration request:', req.body);
+    console.log('📱 Device registration request:', req.body);
     
     const { name, location, deviceId } = req.body;
 
@@ -26,10 +26,13 @@ exports.createDevice = async (req, res) => {
       existingDevice.isDeleted = false;
       await existingDevice.save();
       
+      console.log(`✅ Device updated in MongoDB: ${deviceId}, ID: ${existingDevice._id}`);
+      
       return res.status(200).json({
         success: true,
         message: 'Device updated successfully',
-        device: existingDevice
+        device: existingDevice,
+        mongoId: existingDevice._id
       });
     }
 
@@ -42,12 +45,13 @@ exports.createDevice = async (req, res) => {
     
     await device.save();
     
-    console.log(`New device created: ${deviceId}`);
+    console.log(`✅ New device created in MongoDB: ${deviceId}, ID: ${device._id}`);
 
     res.status(201).json({
       success: true,
       message: 'Device registered successfully',
-      device
+      device: device,
+      mongoId: device._id
     });
 
   } catch (error) {
