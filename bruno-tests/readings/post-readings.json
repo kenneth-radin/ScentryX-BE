@@ -1,0 +1,9 @@
+{
+  "method": "POST",
+  "url": "http://localhost:3000/api/readings",
+  "body": {
+    "deviceId": "DEVICE001",
+    "gasLevel": 48,
+    "timestamp": "2025-11-22T00:00:00.000Z"
+  }
+}
