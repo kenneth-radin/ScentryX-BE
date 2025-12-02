@@ -1,20 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const { register, login } = require('../controllers/auth.controller');
+const { 
+  register, 
+  login, 
+  verifyEmail, 
+  resendVerification,
+  updateAlertPreferences 
+} = require('../controllers/auth.controller');
 const UserToken = require('../models/user-token');
+const authMiddleware = require('../middleware/auth.middleware'); // You'll need to create this
 
 // AUTH ROUTES
 router.post('/register', register);
 router.post('/login', login);
+router.post('/verify-email/:token', verifyEmail);
+router.post('/resend-verification', resendVerification);
 
-// SAVE FCM TOKEN  (POST /api/auth/fcm-token)
-/*
- * Expects:
- * {
- *   "userId": "<mongo_user_id>",
- *   "token": "<fcm_token>"
- * }
- */
+// PROTECTED ROUTES
+router.put('/alert-preferences', authMiddleware, updateAlertPreferences);
+
+// SAVE FCM TOKEN
 router.post('/fcm-token', async (req, res) => {
   try {
     const { userId, token } = req.body;
