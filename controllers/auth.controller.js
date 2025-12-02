@@ -1,41 +1,8 @@
 const User = require("../models/users.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
 
-// Email transporter
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.SMTP_USER || "your-email@gmail.com",
-    pass: process.env.SMTP_PASS || "your-app-password"
-  }
-});
-
-// Send verification email
-async function sendVerificationEmail(email, token, name) {
-  try {
-    const verificationLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email/${token}`;
-    
-    await transporter.sendMail({
-      from: process.env.SMTP_USER || '"ScentryX" <noreply@scentryx.com>',
-      to: email,
-      subject: 'Verify Your Email - ScentryX',
-      html: `
-        <h2>Welcome to ScentryX, ${name}!</h2>
-        <p>Please verify your email by clicking this link:</p>
-        <a href="${verificationLink}">${verificationLink}</a>
-        <p>This link expires in 24 hours.</p>
-      `
-    });
-    return true;
-  } catch (error) {
-    console.error('Email error:', error);
-    return false;
-  }
-}
-
-// REGISTER with email verification
+// REGISTER with verification token (NO EMAIL)
 exports.register = async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
@@ -49,7 +16,7 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Generate verification token using built-in crypto
+    // Generate verification token
     const verificationToken = require('crypto').randomBytes(32).toString('hex');
     const verificationExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
@@ -64,14 +31,11 @@ exports.register = async (req, res) => {
       verificationToken,
       verificationExpires,
       alertPreferences: {
-        emailAlerts: true,
+        emailAlerts: false,  // No email alerts
         smsAlerts: false,
         pushAlerts: true
       }
     });
-
-    // Send verification email
-    const emailSent = await sendVerificationEmail(email, verificationToken, name);
 
     // Create JWT (limited access until verified)
     const token = jwt.sign({ 
@@ -82,9 +46,7 @@ exports.register = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: emailSent 
-        ? "User created. Please check your email to verify." 
-        : "User created, but verification email failed.",
+      message: "User created. Please verify your account in the app.",
       data: {
         token,
         user: {
@@ -96,6 +58,12 @@ exports.register = async (req, res) => {
           isVerified: false,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt
+        },
+        // Return verification token so app can verify later
+        verificationInfo: {
+          requiresVerification: true,
+          verificationToken: verificationToken,
+          verifyEndpoint: `/api/auth/verify-email/${verificationToken}`
         }
       }
     });
@@ -129,10 +97,12 @@ exports.login = async (req, res) => {
     if (!user.isVerified) {
       return res.status(403).json({
         success: false,
-        message: "Please verify your email before logging in",
+        message: "Account not verified. Please verify your account first.",
         data: {
           requiresVerification: true,
-          email: user.email
+          userId: user._id,
+          email: user.email,
+          canResend: true
         }
       });
     }
@@ -167,7 +137,7 @@ exports.login = async (req, res) => {
   }
 };
 
-// VERIFY EMAIL
+// VERIFY ACCOUNT (no email needed)
 exports.verifyEmail = async (req, res) => {
   try {
     const { token } = req.params;
@@ -199,7 +169,7 @@ exports.verifyEmail = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Email verified successfully!",
+      message: "Account verified successfully!",
       data: {
         token: fullToken,
         user: {
@@ -219,7 +189,7 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
-// RESEND VERIFICATION
+// RESEND VERIFICATION (returns token directly)
 exports.resendVerification = async (req, res) => {
   try {
     const { email } = req.body;
@@ -235,7 +205,7 @@ exports.resendVerification = async (req, res) => {
     if (user.isVerified) {
       return res.status(400).json({
         success: false,
-        message: "Email already verified"
+        message: "Account already verified"
       });
     }
 
@@ -247,14 +217,14 @@ exports.resendVerification = async (req, res) => {
     user.verificationExpires = verificationExpires;
     await user.save();
 
-    // Send email
-    const emailSent = await sendVerificationEmail(email, verificationToken, user.name);
-
     res.json({
       success: true,
-      message: emailSent 
-        ? "Verification email sent" 
-        : "Failed to send email"
+      message: "New verification token generated",
+      data: {
+        verificationToken: verificationToken,
+        verifyEndpoint: `/api/auth/verify-email/${verificationToken}`,
+        expiresIn: "24 hours"
+      }
     });
   } catch (err) {
     res.status(500).json({
@@ -264,18 +234,10 @@ exports.resendVerification = async (req, res) => {
   }
 };
 
-// UPDATE ALERT PREFERENCES
-exports.updateAlertPreferences = async (req, res) => {
+// MANUAL VERIFICATION (for admin/testing)
+exports.manualVerify = async (req, res) => {
   try {
-    const userId = req.user?.id; // Will come from auth middleware
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required"
-      });
-    }
-
-    const { emailAlerts, smsAlerts, pushAlerts, phoneNumbers } = req.body;
+    const { userId } = req.params;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -285,9 +247,83 @@ exports.updateAlertPreferences = async (req, res) => {
       });
     }
 
-    // Update preferences
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationExpires = undefined;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "User manually verified",
+      data: {
+        userId: user._id,
+        email: user.email,
+        isVerified: true
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+// CHECK VERIFICATION STATUS
+exports.checkVerification = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId).select('isVerified email name');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        userId: user._id,
+        email: user.email,
+        name: user.name,
+        isVerified: user.isVerified,
+        requiresVerification: !user.isVerified
+      }
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+// UPDATE ALERT PREFERENCES (NO EMAIL)
+exports.updateAlertPreferences = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required"
+      });
+    }
+
+    const { smsAlerts, pushAlerts, phoneNumbers } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Update preferences (NO emailAlerts since no SMTP)
     user.alertPreferences = {
-      emailAlerts: emailAlerts !== undefined ? emailAlerts : (user.alertPreferences?.emailAlerts || true),
+      emailAlerts: false,  // Always false without SMTP
       smsAlerts: smsAlerts !== undefined ? smsAlerts : (user.alertPreferences?.smsAlerts || false),
       pushAlerts: pushAlerts !== undefined ? pushAlerts : (user.alertPreferences?.pushAlerts || true)
     };

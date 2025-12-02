@@ -5,19 +5,20 @@ const {
   login, 
   verifyEmail, 
   resendVerification,
-  updateAlertPreferences 
+  manualVerify,
+  checkVerification,
+  updateAlertPreferences,
+  getProfile 
 } = require('../controllers/auth.controller');
 const UserToken = require('../models/user-token');
-const authMiddleware = require('../middleware/auth.middleware'); // You'll need to create this
 
 // AUTH ROUTES
 router.post('/register', register);
 router.post('/login', login);
 router.post('/verify-email/:token', verifyEmail);
 router.post('/resend-verification', resendVerification);
-
-// PROTECTED ROUTES
-router.put('/alert-preferences', authMiddleware, updateAlertPreferences);
+router.get('/check-verification/:userId', checkVerification);
+router.post('/manual-verify/:userId', manualVerify); // For admin/testing
 
 // SAVE FCM TOKEN
 router.post('/fcm-token', async (req, res) => {
@@ -51,5 +52,9 @@ router.post('/fcm-token', async (req, res) => {
     });
   }
 });
+
+// PROTECTED ROUTES (commented out for now)
+// router.put('/alert-preferences', authMiddleware, updateAlertPreferences);
+// router.get('/profile', authMiddleware, getProfile);
 
 module.exports = router;
