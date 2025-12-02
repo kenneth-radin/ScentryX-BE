@@ -6,12 +6,80 @@ const admin = require('firebase-admin');
 const GAS_THRESHOLD = 50;
 const lastAlert = {};
 
+// 🔥 NEW: Firebase Realtime Database helper functions
+async function updateFirebaseRealtime(data) {
+  try {
+    if (!admin.apps || admin.apps.length === 0) {
+      console.log('Firebase not initialized, skipping Realtime DB update');
+      return;
+    }
+
+    const db = admin.database();
+    const deviceRef = db.ref(`devices/${data.deviceId}`);
+    const now = Date.now();
+
+    // 1. Update current status (for real-time dashboard)
+    await deviceRef.child('current').set({
+      gasValue: data.gasValue,
+      status: data.status,
+      lastUpdate: now,
+      formattedTime: new Date(now).toLocaleString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }),
+      isOnline: true,
+      isAlert: data.gasValue > GAS_THRESHOLD,
+      threshold: GAS_THRESHOLD,
+      deviceName: data.deviceName || 'Unknown Device',
+      location: data.location || 'Unknown Location',
+      rssi: data.rssi || 0,
+      ip: data.ip || 'Unknown'
+    });
+
+    // 2. Add to historical readings (for charts)
+    const readingKey = await deviceRef.child('readings').push({
+      gasValue: data.gasValue,
+      status: data.status,
+      timestamp: now,
+      formattedTime: new Date(now).toISOString(),
+      isAlert: data.gasValue > GAS_THRESHOLD,
+      threshold: GAS_THRESHOLD,
+      mongoId: data._id || null
+    });
+
+    console.log(`✅ Firebase Realtime DB updated for device: ${data.deviceId}`);
+    console.log(`   Current status: ${data.gasValue}% (${data.status})`);
+    console.log(`   Reading key: ${readingKey.key}`);
+
+    // 3. Keep only last 100 readings to prevent database bloat
+    const readingsRef = deviceRef.child('readings');
+    const snapshot = await readingsRef.orderByKey().once('value');
+    const readings = snapshot.val();
+    
+    if (readings) {
+      const keys = Object.keys(readings);
+      if (keys.length > 100) {
+        const keysToDelete = keys.slice(0, keys.length - 100);
+        const deletePromises = keysToDelete.map(key => readingsRef.child(key).remove());
+        await Promise.all(deletePromises);
+        console.log(`   Cleaned up ${keysToDelete.length} old readings`);
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Firebase Realtime DB update error:', error.message);
+    // Don't fail the request if Firebase fails
+  }
+}
+
 // CREATE Gas Reading
 exports.createGasReading = async (req, res) => {
   try {
     console.log('📊 Gas reading received:', req.body);
     
-    const { deviceId, gasValue, status, timestamp } = req.body;
+    const { deviceId, gasValue, status, timestamp, deviceName, location, rssi, ip } = req.body;
 
     // Validation
     if (!deviceId || gasValue === undefined || !status) {
@@ -27,11 +95,23 @@ exports.createGasReading = async (req, res) => {
       gasValue,
       status,
       timestamp: timestamp || new Date(),
+      deviceName,
+      location,
+      rssi,
+      ip
     });
     
     await reading.save();
     
     console.log(`✅ Gas reading saved to MongoDB. ID: ${reading._id}`);
+
+    // 🔥 NEW: Update Firebase Realtime Database
+    const readingData = {
+      ...req.body,
+      _id: reading._id,
+      timestamp: reading.timestamp.getTime()
+    };
+    await updateFirebaseRealtime(readingData);
 
     // Check threshold and create alert if needed
     if (gasValue > GAS_THRESHOLD) {
@@ -47,7 +127,10 @@ exports.createGasReading = async (req, res) => {
           deviceId,
           type: 'GAS_LEAK',
           message: `High LPG level detected: ${gasValue}`,
-          timestamp: new Date()
+          timestamp: new Date(),
+          deviceName,
+          location,
+          gasValue
         });
         await alert.save();
         
@@ -63,17 +146,49 @@ exports.createGasReading = async (req, res) => {
               notification: {
                 title: '🚨 Gas Leak Alert!',
                 body: `Device ${deviceId} detected high LPG: ${gasValue}`,
+                sound: 'default',
+                priority: 'high'
               },
               data: {
                 deviceId,
+                deviceName: deviceName || deviceId,
+                location: location || 'Unknown Location',
                 gasValue: gasValue.toString(),
-                timestamp: new Date().toISOString()
+                status: 'HIGH',
+                timestamp: new Date().toISOString(),
+                type: 'gas_alert',
+                click_action: 'FLUTTER_NOTIFICATION_CLICK'
               },
               tokens: fcmTokens,
+              android: {
+                priority: 'high',
+                notification: {
+                  sound: 'default',
+                  channel_id: 'gas_alerts'
+                }
+              },
+              apns: {
+                payload: {
+                  aps: {
+                    sound: 'default',
+                    badge: 1
+                  }
+                }
+              }
             };
 
             const response = await admin.messaging().sendMulticast(message);
             console.log(`📱 Notifications sent: ${response.successCount} success, ${response.failureCount} failed`);
+            
+            // Also update Firebase with alert info
+            if (admin.apps && admin.apps.length > 0) {
+              const db = admin.database();
+              await db.ref(`devices/${deviceId}/current`).update({
+                lastAlertTime: now,
+                lastAlertValue: gasValue,
+                alertCount: admin.database.ServerValue.increment(1)
+              });
+            }
           } else {
             console.log('No FCM tokens registered for notifications');
           }
@@ -89,7 +204,8 @@ exports.createGasReading = async (req, res) => {
       success: true, 
       message: 'Gas reading saved successfully',
       reading: reading,
-      mongoId: reading._id
+      mongoId: reading._id,
+      firebaseUpdated: true
     });
 
   } catch (error) {
@@ -101,6 +217,81 @@ exports.createGasReading = async (req, res) => {
   }
 };
 
+// 🔥 NEW: Get Firebase current status for a device
+exports.getFirebaseStatus = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    
+    if (!admin.apps || admin.apps.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Firebase not initialized'
+      });
+    }
+    
+    const db = admin.database();
+    const snapshot = await db.ref(`devices/${deviceId}/current`).once('value');
+    const data = snapshot.val();
+    
+    res.json({
+      success: true,
+      deviceId,
+      currentStatus: data
+    });
+    
+  } catch (error) {
+    console.error('Get Firebase status failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+};
+
+// 🔥 NEW: Get Firebase historical readings
+exports.getFirebaseReadings = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+    
+    if (!admin.apps || admin.apps.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Firebase not initialized'
+      });
+    }
+    
+    const db = admin.database();
+    const snapshot = await db.ref(`devices/${deviceId}/readings`)
+      .orderByChild('timestamp')
+      .limitToLast(limit)
+      .once('value');
+    
+    const data = snapshot.val();
+    const readings = data ? Object.values(data).sort((a, b) => b.timestamp - a.timestamp) : [];
+    
+    res.json({
+      success: true,
+      deviceId,
+      count: readings.length,
+      readings
+    });
+    
+  } catch (error) {
+    console.error('Get Firebase readings failed:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+};
+
+// NEW: Add Firebase endpoint to your routes
+// In your gas-routes.js file, add:
+// router.get('/firebase-status/:deviceId', gasController.getFirebaseStatus);
+// router.get('/firebase-readings/:deviceId', gasController.getFirebaseReadings);
+
+// KEEP ALL YOUR EXISTING FUNCTIONS BELOW UNCHANGED
 // GET all gas readings
 exports.getAllGasReadings = async (req, res) => {
   try {

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const gasController = require('../controllers/gas.controller'); // FIXED: .controller not -controller
+const gasController = require('../controllers/gas.controller'); // ✅ Correct
 
 // POST a new gas reading (automatic alert if above threshold)
 router.post('/', gasController.createGasReading);
@@ -16,5 +16,9 @@ router.put('/:id', gasController.updateGasReading);
 
 // DELETE a gas reading
 router.delete('/:id', gasController.deleteGasReading);
+
+// 🔥 ADD THESE 2 NEW ROUTES AT THE BOTTOM:
+router.get('/firebase/status/:deviceId', gasController.getFirebaseStatus);
+router.get('/firebase/readings/:deviceId', gasController.getFirebaseReadings);
 
 module.exports = router;
