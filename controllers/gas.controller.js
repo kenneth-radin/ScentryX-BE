@@ -6,7 +6,7 @@ const admin = require('firebase-admin');
 const GAS_THRESHOLD = 50;
 const lastAlert = {};
 
-// 🔥 NEW: Firebase Realtime Database helper functions
+// NEW: Firebase Realtime Database helper functions
 async function updateFirebaseRealtime(data) {
   try {
     if (!admin.apps || admin.apps.length === 0) {

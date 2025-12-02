@@ -17,7 +17,7 @@ router.put('/:id', gasController.updateGasReading);
 // DELETE a gas reading
 router.delete('/:id', gasController.deleteGasReading);
 
-// 🔥 ADD THESE 2 NEW ROUTES AT THE BOTTOM:
+// ADD THESE 2 NEW ROUTES AT THE BOTTOM:
 router.get('/firebase/status/:deviceId', gasController.getFirebaseStatus);
 router.get('/firebase/readings/:deviceId', gasController.getFirebaseReadings);
 
