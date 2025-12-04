@@ -49,9 +49,9 @@ async function updateFirebaseRealtime(data) {
       mongoId: data._id || null
     });
 
-    console.log(`✅ Firebase Realtime DB updated for device: ${data.deviceId}`);
-    console.log(`   Current status: ${data.gasValue}% (${data.status})`);
-    console.log(`   Reading key: ${readingKey.key}`);
+    console.log('Firebase Realtime DB updated for device:', data.deviceId);
+    console.log('   Current status:', data.gasValue + '% (' + data.status + ')');
+    console.log('   Reading key:', readingKey.key);
 
     // 3. Keep only last 100 readings to prevent database bloat
     const readingsRef = deviceRef.child('readings');
@@ -64,12 +64,12 @@ async function updateFirebaseRealtime(data) {
         const keysToDelete = keys.slice(0, keys.length - 100);
         const deletePromises = keysToDelete.map(key => readingsRef.child(key).remove());
         await Promise.all(deletePromises);
-        console.log(`   Cleaned up ${keysToDelete.length} old readings`);
+        console.log('   Cleaned up', keysToDelete.length, 'old readings');
       }
     }
 
   } catch (error) {
-    console.error('❌ Firebase Realtime DB update error:', error.message);
+    console.error('Firebase Realtime DB update error:', error.message);
     // Don't fail the request if Firebase fails
   }
 }
@@ -77,7 +77,7 @@ async function updateFirebaseRealtime(data) {
 // CREATE Gas Reading
 exports.createGasReading = async (req, res) => {
   try {
-    console.log('📊 Gas reading received:', req.body);
+    console.log('Gas reading received:', req.body);
     
     const { deviceId, gasValue, status, timestamp, deviceName, location, rssi, ip } = req.body;
 
@@ -103,9 +103,9 @@ exports.createGasReading = async (req, res) => {
     
     await reading.save();
     
-    console.log(`✅ Gas reading saved to MongoDB. ID: ${reading._id}`);
+    console.log('Gas reading saved to MongoDB. ID:', reading._id);
 
-    // 🔥 NEW: Update Firebase Realtime Database
+    // NEW: Update Firebase Realtime Database
     const readingData = {
       ...req.body,
       _id: reading._id,
@@ -120,7 +120,7 @@ exports.createGasReading = async (req, res) => {
 
       // Throttle alerts (2 minutes)
       if (now - last > 2 * 60 * 1000) {
-        console.log(`🚨 HIGH GAS ALERT for ${deviceId}: ${gasValue}`);
+        console.log('HIGH GAS ALERT for', deviceId + ':', gasValue);
         
         // Create alert in MongoDB
         const alert = new Alert({
@@ -134,20 +134,19 @@ exports.createGasReading = async (req, res) => {
         });
         await alert.save();
         
-        console.log(`✅ Alert saved to MongoDB. ID: ${alert._id}`);
+        console.log('Alert saved to MongoDB. ID:', alert._id);
 
-        // ✅ FIXED: Send FCM notifications with sendToDevice
+        // FIXED: Send FCM notifications with sendEachForMulticast
         try {
           const tokensData = await UserToken.find().select('fcmToken -_id');
           const fcmTokens = tokensData.map(t => t.fcmToken).filter(Boolean);
 
           if (fcmTokens.length > 0) {
-            // ✅ FIX: Use sendToDevice instead of sendMulticast
-            const payload = {
+            const message = {
+              tokens: fcmTokens,
               notification: {
-                title: '🚨 Gas Leak Alert!',
+                title: 'Gas Leak Alert!',
                 body: `High LPG level detected: ${gasValue}ppm at ${deviceName || deviceId}`,
-                sound: 'default',
               },
               data: {
                 deviceId,
@@ -176,18 +175,17 @@ exports.createGasReading = async (req, res) => {
               },
             };
 
-            // ✅ CORRECT METHOD for firebase-admin v13
-            const response = await admin.messaging().sendToDevice(fcmTokens, payload, {
-              priority: 'high',
-            });
+            // FIX: Use sendEachForMulticast (correct for firebase-admin v13)
+            const response = await admin.messaging().sendEachForMulticast(message);
 
-            console.log(`📱 Notifications sent: ${response.successCount} success, ${response.failureCount} failed`);
+            console.log(
+              'Notifications sent:', response.successCount, 'success,', response.failureCount, 'failed'
+            );
 
-            // Log failures for debugging
             if (response.failureCount > 0) {
-              response.results.forEach((result, index) => {
-                if (!result.success) {
-                  console.error(`Failed to send to token ${fcmTokens[index]}:`, result.error);
+              response.responses.forEach((res, idx) => {
+                if (!res.success) {
+                  console.error('Failed to send to token', fcmTokens[idx] + ':', res.error);
                 }
               });
             }
@@ -221,7 +219,7 @@ exports.createGasReading = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Create gas reading failed:', error.message);
+    console.error('Create gas reading failed:', error.message);
     res.status(500).json({ 
       success: false, 
       error: error.message 
@@ -229,7 +227,7 @@ exports.createGasReading = async (req, res) => {
   }
 };
 
-// 🔥 NEW: Get Firebase current status for a device
+// NEW: Get Firebase current status for a device
 exports.getFirebaseStatus = async (req, res) => {
   try {
     const { deviceId } = req.params;
@@ -260,7 +258,7 @@ exports.getFirebaseStatus = async (req, res) => {
   }
 };
 
-// 🔥 NEW: Get Firebase historical readings
+// NEW: Get Firebase historical readings
 exports.getFirebaseReadings = async (req, res) => {
   try {
     const { deviceId } = req.params;
@@ -298,7 +296,7 @@ exports.getFirebaseReadings = async (req, res) => {
   }
 };
 
-// 🔥 NEW: Add this helper function for sending test notifications
+// NEW: Add this helper function for sending test notifications
 exports.sendTestNotification = async (req, res) => {
   try {
     const { deviceId, gasValue = 75, deviceName = "Test Device", location = "Test Location" } = req.body;
@@ -313,11 +311,11 @@ exports.sendTestNotification = async (req, res) => {
       });
     }
 
-    const payload = {
+    const message = {
+      tokens: fcmTokens,
       notification: {
-        title: '🚨 TEST Gas Alert!',
+        title: 'TEST Gas Alert!',
         body: `Test alert: ${gasValue}ppm at ${deviceName}`,
-        sound: 'default',
       },
       data: {
         deviceId: deviceId || 'test-device',
@@ -328,12 +326,14 @@ exports.sendTestNotification = async (req, res) => {
         timestamp: new Date().toISOString(),
         type: 'test_alert',
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
+      },
+      android: {
+        priority: 'high'
       }
     };
 
-    const response = await admin.messaging().sendToDevice(fcmTokens, payload, {
-      priority: 'high',
-    });
+    // FIX: Use sendEachForMulticast
+    const response = await admin.messaging().sendEachForMulticast(message);
 
     res.json({
       success: true,
