@@ -136,18 +136,18 @@ exports.createGasReading = async (req, res) => {
         
         console.log(`✅ Alert saved to MongoDB. ID: ${alert._id}`);
 
-        // Send FCM notifications
+        // ✅ FIXED: Send FCM notifications with sendToDevice
         try {
           const tokensData = await UserToken.find().select('fcmToken -_id');
           const fcmTokens = tokensData.map(t => t.fcmToken).filter(Boolean);
 
           if (fcmTokens.length > 0) {
-            const message = {
+            // ✅ FIX: Use sendToDevice instead of sendMulticast
+            const payload = {
               notification: {
                 title: '🚨 Gas Leak Alert!',
-                body: `Device ${deviceId} detected high LPG: ${gasValue}`,
+                body: `High LPG level detected: ${gasValue}ppm at ${deviceName || deviceId}`,
                 sound: 'default',
-                priority: 'high'
               },
               data: {
                 deviceId,
@@ -157,28 +157,40 @@ exports.createGasReading = async (req, res) => {
                 status: 'HIGH',
                 timestamp: new Date().toISOString(),
                 type: 'gas_alert',
-                click_action: 'FLUTTER_NOTIFICATION_CLICK'
+                click_action: 'FLUTTER_NOTIFICATION_CLICK',
               },
-              tokens: fcmTokens,
               android: {
                 priority: 'high',
                 notification: {
                   sound: 'default',
-                  channel_id: 'gas_alerts'
-                }
+                  channel_id: 'gas_alerts',
+                },
               },
               apns: {
                 payload: {
                   aps: {
                     sound: 'default',
-                    badge: 1
-                  }
-                }
-              }
+                    badge: 1,
+                  },
+                },
+              },
             };
 
-            const response = await admin.messaging().sendMulticast(message);
+            // ✅ CORRECT METHOD for firebase-admin v13
+            const response = await admin.messaging().sendToDevice(fcmTokens, payload, {
+              priority: 'high',
+            });
+
             console.log(`📱 Notifications sent: ${response.successCount} success, ${response.failureCount} failed`);
+
+            // Log failures for debugging
+            if (response.failureCount > 0) {
+              response.results.forEach((result, index) => {
+                if (!result.success) {
+                  console.error(`Failed to send to token ${fcmTokens[index]}:`, result.error);
+                }
+              });
+            }
             
             // Also update Firebase with alert info
             if (admin.apps && admin.apps.length > 0) {
@@ -286,10 +298,58 @@ exports.getFirebaseReadings = async (req, res) => {
   }
 };
 
-// NEW: Add Firebase endpoint to your routes
-// In your gas-routes.js file, add:
-// router.get('/firebase-status/:deviceId', gasController.getFirebaseStatus);
-// router.get('/firebase-readings/:deviceId', gasController.getFirebaseReadings);
+// 🔥 NEW: Add this helper function for sending test notifications
+exports.sendTestNotification = async (req, res) => {
+  try {
+    const { deviceId, gasValue = 75, deviceName = "Test Device", location = "Test Location" } = req.body;
+    
+    const tokensData = await UserToken.find().select('fcmToken -_id');
+    const fcmTokens = tokensData.map(t => t.fcmToken).filter(Boolean);
+
+    if (fcmTokens.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No FCM tokens found'
+      });
+    }
+
+    const payload = {
+      notification: {
+        title: '🚨 TEST Gas Alert!',
+        body: `Test alert: ${gasValue}ppm at ${deviceName}`,
+        sound: 'default',
+      },
+      data: {
+        deviceId: deviceId || 'test-device',
+        deviceName: deviceName,
+        location: location,
+        gasValue: gasValue.toString(),
+        status: 'HIGH',
+        timestamp: new Date().toISOString(),
+        type: 'test_alert',
+        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+      }
+    };
+
+    const response = await admin.messaging().sendToDevice(fcmTokens, payload, {
+      priority: 'high',
+    });
+
+    res.json({
+      success: true,
+      message: `Test notification sent to ${response.successCount} devices`,
+      failed: response.failureCount,
+      total: fcmTokens.length
+    });
+
+  } catch (error) {
+    console.error('Test notification failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
 
 // KEEP ALL YOUR EXISTING FUNCTIONS BELOW UNCHANGED
 // GET all gas readings

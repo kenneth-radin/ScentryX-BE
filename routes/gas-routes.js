@@ -17,7 +17,10 @@ router.put('/:id', gasController.updateGasReading);
 // DELETE a gas reading
 router.delete('/:id', gasController.deleteGasReading);
 
-// ADD THESE 2 NEW ROUTES AT THE BOTTOM:
+// ✅ NEW: Test FCM notification
+router.post('/test-notification', gasController.sendTestNotification);
+
+// Firebase routes
 router.get('/firebase/status/:deviceId', gasController.getFirebaseStatus);
 router.get('/firebase/readings/:deviceId', gasController.getFirebaseReadings);
 

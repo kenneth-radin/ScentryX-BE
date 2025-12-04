@@ -14,9 +14,9 @@ try {
     credential: admin.credential.cert(serviceAccount),
     databaseURL: "https://scentryx-9dd99-default-rtdb.asia-southeast1.firebasedatabase.app"
   });
-  console.log('✅ Firebase initialized');
+  console.log('Firebase initialized');
 } catch (error) {
-  console.log('⚠️ Firebase initialization skipped:', error.message);
+  console.log('Firebase initialization skipped:', error.message);
 }
 
 const app = express();
@@ -54,51 +54,51 @@ app.get('/health', (req, res) => {
 // Load route files
 try {
   app.use('/api/devices', require('./routes/device-routes'));
-  console.log('✅ Loaded device routes');
+  console.log('Loaded device routes');
 } catch (err) {
-  console.log('❌ Failed to load device routes:', err.message);
+  console.log('Failed to load device routes:', err.message);
 }
 
 try {
   app.use('/api/gas', require('./routes/gas-routes'));
-  console.log('✅ Loaded gas routes');
+  console.log('Loaded gas routes');
 } catch (err) {
-  console.log('❌ Failed to load gas routes:', err.message);
+  console.log('Failed to load gas routes:', err.message);
 }
 
 try {
   app.use('/api/tokens', require('./routes/token-routes'));
-  console.log('✅ Loaded token routes');
+  console.log('Loaded token routes');
 } catch (err) {
-  console.log('❌ Failed to load token routes:', err.message);
+  console.log('Failed to load token routes:', err.message);
 }
 
 try {
   app.use('/api/config', require('./routes/config-routes'));
-  console.log('✅ Loaded config routes');
+  console.log('Loaded config routes');
 } catch (err) {
-  console.log('❌ Failed to load config routes:', err.message);
+  console.log('Failed to load config routes:', err.message);
 }
 
 try {
   app.use('/api/auth', require('./routes/auth.routes'));
-  console.log('✅ Loaded auth routes');
+  console.log('Loaded auth routes');
 } catch (err) {
-  console.log('❌ Failed to load auth routes:', err.message);
+  console.log('Failed to load auth routes:', err.message);
 }
 
 try {
   app.use('/api/alerts', require('./routes/alert.routes'));
-  console.log('✅ Loaded alert routes');
+  console.log('Loaded alert routes');
 } catch (err) {
-  console.log('❌ Failed to load alert routes:', err.message);
+  console.log('Failed to load alert routes:', err.message);
 }
 
 try {
   app.use('/api/readings', require('./routes/readings.routes'));
-  console.log('✅ Loaded readings routes');
+  console.log('Loaded readings routes');
 } catch (err) {
-  console.log('❌ Failed to load readings routes:', err.message);
+  console.log('Failed to load readings routes:', err.message);
 }
 
 // ==================== ADDITIONAL DIRECT ROUTES ====================
@@ -164,7 +164,7 @@ app.use('*', (req, res) => {
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('❌ Server error:', err);
+  console.error('Server error:', err);
   res.status(500).json({
     success: false,
     message: 'Internal server error'
@@ -183,15 +183,15 @@ if (MONGODB_URI) {
     socketTimeoutMS: 45000,
   })
   .then(() => {
-    console.log('✅ MongoDB Atlas connected!');
+    console.log('MongoDB Atlas connected!');
     console.log(`Database: ${mongoose.connection.name}`);
     
     // Start server
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`\n✅ Server started on port ${PORT}`);
-      console.log(`📡 URL: https://scentryx-backend.onrender.com`);
-      console.log(`🚀 Ready for ESP8266 connections!`);
-      console.log('\n📋 Available endpoints:');
+      console.log(`\nServer started on port ${PORT}`);
+      console.log(`URL: https://scentryx-backend.onrender.com`);
+      console.log(`Ready for ESP8266 connections!`);
+      console.log('\n Available endpoints:');
       console.log('   POST /api/devices - Register device (saves to MongoDB)');
       console.log('   POST /api/gas     - Submit gas reading (saves to MongoDB)');
       console.log('   GET  /api/devices - List all devices (from MongoDB)');
@@ -200,11 +200,11 @@ if (MONGODB_URI) {
     });
   })
   .catch(err => {
-    console.error('❌ MongoDB connection failed:', err.message);
+    console.error('MongoDB connection failed:', err.message);
     console.log('Exiting...');
     process.exit(1);
   });
 } else {
-  console.error('❌ MONGO_URI not found in .env');
+  console.error('MONGO_URI not found in .env');
   process.exit(1);
 }
